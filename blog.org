@@ -1,0 +1,793 @@
+#+hugo_base_dir: .
+* My blog
+:PROPERTIES:
+:EXPORT_HUGO_SECTION:
+:END:
+** HOME
+:PROPERTIES:
+:EXPORT_FILE_NAME: _index
+:END:
+Dit is de home van mijn blog !
+
+** SQL Inspector : Clojure + JDBC + JavaFX Desktop application - Part 1
+:PROPERTIES:
+:EXPORT_FILE_NAME: sql-inspector-part1
+:END:
+*** What?
+"SQL Inspector" is a desktop application written in Clojure.  It shows all tables of a database. There is a textbox that you can use to filter the tables. Selecting a table will show all its columns and types.
+[[/si-sketch-v2.png]]
+
+*** Setup and configure Database Container
+This is a database application, thus we need a database.  I'll go for MS SQL Server because that is the database I use on my current project.
+
+Fortunately there is a Docker container [[https://hub.docker.com/_/microsoft-mssql-server][here]] from Docker Hub so it will run on linux too. Check the install info at: [[https://docs.microsoft.com/en-us/sql/linux/quickstart-install-connect-docker?view=sql-server-ver15&pivots=cs1-bash][Docker: Install containers for SQL Server on Linux - SQL Server | Microsoft Docs]].
+
+
+The following shell script will launch the docker container.
+
+#+begin_src bash
+sudo docker run -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=<YourStrong@Passw0rd>" \
+   -p 1433:1433 --name sqlserver2019 -h sqlserver2019 \
+   -v sql2019data:/var/opt/mssql \
+   -d mcr.microsoft.com/mssql/server:2019-latest
+#+end_src
+
+Have a look at the parameter /-v/.  This says to create a new volume called /sql2019data/ (if it doesn't already exists). This is actually a container that persists the data and is mounted in the /sqlserver2019/ on the folder /var/opt/mssql/.  If you kill the /sqlserver2019/ container you won't lose the actual data of the database.  This is because the data is not stored in the regular container /sqlserver2019/ but in the container /sql2019data/. See [[https://docs.docker.com/storage/volumes/][Use volumes | Docker Documentation]] and also [[https://docs.microsoft.com/en-us/sql/linux/sql-server-linux-docker-container-configure?view=sql-server-ver15&pivots=cs1-bash#persist][Configure and customize SQL Server Docker containers - SQL Server | Microsoft...]]
+
+
+Next steps in the database initialization is:
+- Create a new database /test_db/.
+- Create a new user /test_user/.
+- Grant the needed permissions to the /test_user/. To be honest, I only found out what permissions were needed once I started to create the tables in Step 02 here below.
+- Change the password for user /sa/.  The original password is forever saved in the environment variable SA_PASSWORD in the containier. Which means it is visible for anyone with access to the container. So it is very important to change the password for /sa/.
+
+For this we will launch the /sqlcmd/ application from within the container :
+#+begin_src bash
+sudo docker exec -it -w /opt/mssql-tools/bin sqlserver2019 ./sqlcmd -S localhost -U SA
+#+end_src
+
+And enter the following commands in the sqlcmd (each command will be executed when you typed 'GO' on a new line):
+#+begin_src sql
+1> create database test_db
+2> go
+1> create login test_user with password = 'test123!'
+2> go
+1> use test_db
+2> go
+Changed database context to 'test_db'.
+1> create user test_user for login test_user
+2> go
+1> exec sp_addrolemember 'db_datareader', 'test_user'
+2> go
+1> grant alter on schema::dbo to test_user
+2> go
+1> grant create table to test_user
+2> go        
+1> grant references to test_user
+2> go
+1> alter login sa with password = 'NewPassw0rd!'
+2> go
+1> quit
+#+end_src
+  
+And finally, when we've finished playing with the container we must stop it. And equally important - because we gave the container a name -  we must also remove the container. If we don't delete,  we won't be able to restart the container the next time.
+
+    #+begin_src bash
+    sudo docker stop sqlserver2019
+    sudo docker rm sqlserver2019
+    #+end_src
+
+*** Practical stuff
+You can find the code at https://github.com/pasdut/sqlinspector/.
+Every step has its own branch.
+If you want to follow along there are a couple of possibilities, depending on your own personal preferences:
+**** Clone everything and switch branches on the fly
+#+begin_src bash
+# clone everything
+~$ git clone https://github.com/pasdut/sqlinspector.git
+Cloning into 'sqlinspector'...
+~$ cd sqlinspector/
+
+# look at the core.clj from step02
+~/sqlinspector$ git switch step02
+Branch 'step02' set up to track remote branch 'step02' from 'origin'.
+Switched to a new branch 'step02'
+~/sqlinspector$ cat src/sqlinspector/core.clj
+# or you could run step02
+~/sqlinspector$ lein run
+
+#switch back to main to see the latest version of core.clj
+~/sqlinspector$ git switch main
+Switched to branch 'main'
+Your branch is up to date with 'origin/main'.
+~/sqlinspector$ cat src/sqlinspector/core.clj
+#+end_src
+
+**** Clone each step in its own folder
+Useful if you want to get all steps in its own folder. You can then open for instance all /core.clj/ files of all different steps at once in your favorite editor.
+#+begin_src bash
+# get step01 in its own folder
+~$ mkdir step01
+~$ cd step01
+~/step01$ git clone -b step01 https://github.com/pasdut/sqlinspector.git
+Cloning into 'sqlinspector'...
+~/step01$ cd ..
+
+# get step02 in its own folder
+~$ mkdir step02
+~$ cd step02
+~/step02 git clone -b step02 https://github.com/pasdut/sqlinspector.git
+Cloning into 'sqlinspector'...
+~/step02$ cd ..
+
+# now the source of both versions are available at the same time
+~$ cat ~/step01/sqlinspector/src/sqlinspector/core.clj
+~$ cat ~/step02/sqlinspector/src/sqlinspector/core.clj
+#+end_src
+
+**** Use the github website
+Click on the /branches/ icon to see all branches.
+[[file:si-gh-01.png][file:si-gh-01-s.png]]
+
+You can then make a branch active by clicking on it, in the example below click on the /step02/ branch.
+[[file:si-gh-02.png][file:si-gh-02-s.png]]
+
+Now you'll see the /step02/ branch is selected.  Click on the commits to see the commits.
+[[file:si-gh-03.png][file:si-gh-03-s.png]]
+
+The latest commit is the one that is actually added in this step.  If you click on the commit hash you'll see the diff between previous commits.
+[[file:si-gh-04.png][file:si-gh-04-s.png]]
+
+Green is what has been added, red is what has been removed. In the example below you'll notice the single line /:dependencies/ is replaced by a /:dependencies/ that now spans multiple lines.
+[[file:si-gh-05.png][file:si-gh-05-s.png]]
+
+*** Step 01 - Create application
+Let's create a new application via [[https://leiningen.org/][Leiningen]].  And while we're here, let's also immediately test if the application runs. Just to be sure everything is correctly installed.
+#+begin_src
+~$ lein new app sqlinspector
+~$ cd sqlinspector
+~/sqlinspector$ lein run
+Hello, World!
+#+end_src
+
+*** Step 02 - JDBC Database connection experimentation in the REPL
+Data access is via [[https://docs.oracle.com/javase/8/docs/technotes/guides/jdbc/][Java JDBC API]]. And on top of JDBC we have the clojure library [[https://github.com/seancorfield/next-jdbc][next-jdbc]].
+First of all we must include the dependencies for [[https://github.com/seancorfield/next-jdbc][next.jdbc]] and the [[https://docs.microsoft.com/en-us/sql/connect/jdbc/download-microsoft-jdbc-driver-for-sql-server?view=sql-server-ver15][JDBC driver for MS SQL]].  There is no need to manually download the JDBC driver, /lein/ will take care of that for us.
+#+begin_src clojure
+  :dependencies [[org.clojure/clojure "1.10.1"]
+                 [com.github.seancorfield/next.jdbc "1.2.772"]
+                 [com.microsoft.sqlserver/mssql-jdbc "10.2.0.jre11"]]
+#+end_src
+
+When we start a REPL these new dependencies will now be retrieved:
+
+#+begin_src
+~/sqlinspector$ lein repl
+nREPL server started on port 40705 on host 127.0.0.1 - nrepl://127.0.0.1:40705
+REPL-y 0.4.4, nREPL 0.7.0
+Clojure 1.10.1
+OpenJDK 64-Bit Server VM 11.0.11+9-Ubuntu-0ubuntu2.20.10
+    Docs: (doc function-name-here)
+          (find-doc "part-of-name-here")
+  Source: (source function-name-here)
+ Javadoc: (javadoc java-object-or-class-here)
+    Exit: Control+D or (exit) or (quit)
+ Results: Stored in vars *1, *2, *3, an exception in *e
+
+sqlinspector.core=> (quit)
+Bye for now!
+#+end_src
+
+
+From now on, I will no longer use the command line to launch a REPL.
+
+Instead I will fully embrace [[https://practical.li/clojure-staging/repl-driven-devlopment.html][REPL driven development]] and enter the expressions directly in my editor (I use emacs + Cider, but you are of course free to use IntelliJ + Cursive or VSCode + Calva)
+
+Let's prepare the /core.clj/ by requiring /next.jdbc/ and adding an empty /comment/ block where we can enter code to be executed immediately.
+#+begin_src clojure
+(ns sqlinspector.core
+  (:gen-class)
+  (:require [next.jdbc :as jdbc])
+  )
+
+(defn -main
+  "I don't do a whole lot ... yet."
+  [& args]
+  (println "Hello, World!"))
+
+;;----------------------------------------------------------------------------------------
+;; Below is a big chunk of . This is used to enter expressions in the REPL directly
+;; from within the Editor.
+;;----------------------------------------------------------------------------------------
+(comment
+
+  ;;type here below all the expressions you want to evaluate in the repl
+
+  )
+
+#+end_src
+
+If we now send the complete file to the repl, the jdbc library will be loaded and we can start using it.
+
+Let's see if we can execute a /select/. Remember, just type the code in the comment section and instruct your editor to send the expression to the REPL.
+
+#+begin_src clojure
+;;----------------------------------------------------------------------------------------
+;; Below is a big chunk of comment. This is used to enter expressions in the REPL directly
+;; from within the Editor.
+;;----------------------------------------------------------------------------------------
+(comment
+
+  ;; the connection parameters
+  (def db {:dbtype "sqlserver"
+           :user "test_user"
+           :password "test123!"
+           :host "127.0.0.1"
+           :encrypt false
+           :dbname "test_db"})
+  (def ds (jdbc/get-datasource db))
+
+  ;; test with the most simple select
+  (jdbc/execute! ds ["select 123 as just_a_number"])
+
+  )
+#+end_src
+
+Hooray, it works! We just give /jdbc/execute!/ a query and it will be executed.
+
+Let's beef up our database with some tables :
+
+#+begin_src clojure
+  (jdbc/execute! ds [(str "create table t_customer ( \n"
+                          "  id_customer int not null identity(1,1) \n"
+                          "    constraint pk_t_customer primary key, \n"
+                          "  first_name varchar(250), \n"
+                          "  last_name varchar(250), \n"
+                          "  last_modified datetime not null \n"
+                          "    constraint df_t_customer default (getdate()))")])
+
+  (jdbc/execute! ds [(str "create table t_address_type ( \n"
+                          "  address_type varchar(50) not null \n"
+                          "    constraint pk_t_address_type primary key, \n"
+                          "  info varchar(250))")])
+
+  (jdbc/execute! ds [(str "create table t_customer_address ( \n"
+                          "  id_customer_address int not null identity(1,1) \n"
+                          "    constraint pk_t_customer_address primary key, \n"
+                          "  id_customer int not null \n"
+                          "    constraint fk_t_customer_address__customer \n"
+                          "    foreign key references t_customer(id_customer), \n"
+                          "  address_type varchar(50) not null \n"
+                          "    constraint fk_t_customer_address__addres_type \n"
+                          "    foreign key references t_address_type(address_type), \n"
+                          "  is_default bit not null \n "
+                          "    constraint df_t_customer_address default (0), \n"
+                          "  info varchar(250))")])
+#+end_src
+
+And now the real work : extract the table names from the database. In Sql Server we find this info in /sys.tables/.
+
+#+begin_src clojure
+  (jdbc/execute! ds [(str "select name, create_date, modify_date as table_name \n"
+                          "from sys.tables order by name") ])
+#+end_src
+
+We can find the columns of a given table in /sys.columns/:
+
+#+begin_src clojure
+(let [table-name "t_customer"]
+    (jdbc/execute! ds
+                   [(str "select \n"
+                         "  c.column_id, \n"
+                         "  c.name as column_name, \n"
+                         "  t.[name] as type_name, \n"
+                         "  c.max_length, \n"
+                         "  c.is_nullable, \n"
+                         "  c.is_identity \n"
+                         "from sys.columns c \n"
+                         "join sys.types t on t.system_type_id = c.system_type_id \n"
+                         "where c.[object_id] = object_id(?) \n"
+                         "order by c.column_id")
+                    table-name]))
+#+end_src
+
+*** Step 03 - Create the database related functions
+Let's remove the code from the REPL experiment from /Step 02/ and carve it in stone instead:
+- The /(def db ...)/ and /(def ds ...)/ are moved out of the /(comment ...)/ part into the actual source of /core.clj/.
+- And two new functions /retrieve-all-tables/ and /retrieve-table-columns/ are created.
+
+Step 03 is just a formality, there is no new code.  This step is just created so you can see on the branch how the code is moved out of the /(comment ...)/ block.
+
+Test in the REPL if the new functions work as expected.
+#+begin_src clojure
+  ;; check if the new functions work as expected
+  (retrieve-all-tables)
+  (retrieve-table-columns "t_customer")
+#+end_src
+
+*** End of Part 1
+
+This finishes the end of the first Part.  Now we are able to get the needed data from the database. In Part 2 we will start with the UI
+
+
+
+
+
+** SQL Inspector : Clojure + JDBC + JavaFX Desktop application - Part 2
+:PROPERTIES:
+:EXPORT_FILE_NAME: sql-inspector-part2
+:END:
+*** Intro
+In part 2 we will develop the user interface.  We will ignore styling and just focus on the mechanics.  The result will be something usable (but with an awful look 'n feel).
+
+I'll also want to demonstrate how the REPL development works step by step. Normally the functions are modified on the fly.  But as an educational tool, I will keep all subsequent versions in the /(comment ... )/ section.
+
+*** JavaFX
+Now we can start with the actual User interface.
+
+The GUI will be created by [[https://openjfx.io/][JavaFX]]. Go ahead and download and install the binaries [[https://gluonhq.com/products/javafx/][from Gluon]].
+
+Here is a nice [[https://jenkov.com/tutorials/javafx/overview.html][JavaFX Overview]].
+
+On top of JavaFX we will use the clojure wrapper [[https://github.com/cljfx/cljfx][cljfx]].
+
+*** Step 04 - Let's show something
+**** 4.1 Add cljfx dependency
+First add cljfx to the dependencies in /project.clj/.
+#+begin_src clojure
+;; project.clj
+:dependencies [[org.clojure/clojure "1.10.1"]
+               [com.github.seancorfield/next.jdbc "1.2.772"]
+               [com.microsoft.sqlserver/mssql-jdbc "10.2.0.jre11"]
+               [cljfx "1.7.16"]
+               ]
+
+#+end_src
+
+
+We can't use cljfx if we don't /require/ it. Thus add it in core.clj too.
+
+#+begin_src clojure
+;;core.clj
+(ns sqlinspector.core
+  (:gen-class)
+  (:require [next.jdbc :as jdbc]
+            [cljfx.api :as fx])
+  )
+#+end_src
+
+Now instruct /lein/ to load the dependencies. And to see if everything works as it should we start de REPL from /lein/ too.
+#+begin_src bash
+~/sqlinspector$ lein deps
+~/sqlinspector$ lein repl
+Error in glXCreateNewContext, remote GLX is likely disabled
+nREPL server started on port 37031 on host 127.0.0.1 - nrepl://127.0.0.1:37031
+REPL-y 0.4.4, nREPL 0.7.0
+Clojure 1.10.1
+OpenJDK 64-Bit Server VM 11.0.11+9-Ubuntu-0ubuntu2.20.10
+    Docs: (doc function-name-here)
+          (find-doc "part-of-name-here")
+  Source: (source function-name-here)
+ Javadoc: (javadoc java-object-or-class-here)
+    Exit: Control+D or (exit) or (quit)
+ Results: Stored in vars *1, *2, *3, an exception in *e
+
+sqlinspector.core=> (quit)
+Bye for now!
+#+end_src
+
+(There is an /Error in glxCreateNewContext/ but I guess it might be because I'm running in WSL on Windows, so just ignore it...)
+
+If you have a REPL open in your editor, don't forget to reload that REPL too.
+
+**** 4.2 Hello there
+To get our feet wet we start with the [[https://github.com/cljfx/cljfx#hello-world][cljfx Hello World]] example.
+#+begin_src clojure
+(fx/on-fx-thread
+   (fx/create-component
+    {:fx/type :stage
+     :showing true
+     :title "Cljfx example"
+     :width 300
+     :height 100
+     :scene {:fx/type :scene
+             :root {:fx/type :v-box
+                    :alignment :center
+                    :children [{:fx/type :label
+                                :text "Hello from SQL Inspector"}]}}}))
+#+end_src
+
+If all went well you should get the following window:
+[[file:si-step04-01.png]]
+
+**** 4.3 Let's program interactively
+We want to develop the GUI interactively from within the REPL. The following is heavily based on the example [[https://github.com/cljfx/cljfx/blob/master/examples/e12_interactive_development.clj][e12_interactive_development.clj]] from the cljfx [[https://github.com/cljfx/cljfx/tree/master/examples][examples]].
+
+The idea is whenever you changed a function, just call /(renderer)/ to redisplay the GUI.
+
+You are supposed to execute the code that follows expression by expression, without the need to reload or recompile the complete application. Power to the REPL...
+
+Let's see if we can display a label and a text-box.
+#+begin_src clojure
+  ;; A state with some dummy data that we will display
+  (def *state
+    (atom {:table-filter "some filter data"}))
+
+
+  (defn root-view [{{:keys [table-filter]} :state}]
+    {:fx/type :stage
+     :showing true
+     :title "SQL inspector"
+     :width 500
+     :height 300
+     :scene {:fx/type :scene
+             :root {:fx/type :v-box
+                    :children [{:fx/type :label
+                                :text "Table filter:"}
+                               {:fx/type :text-field
+                                :text table-filter}]}}})
+
+  (def renderer
+    (fx/create-renderer
+     :middleware (fx/wrap-map-desc (fn [state]
+                                     {:fx/type root-view
+                                      :state state}))))
+
+  ;; Start watching for state changes and call the renderer.
+  ;; This will show the window.
+  (fx/mount-renderer *state renderer)
+
+  ;; Whenever we update the state, the text-field should update too.
+  (reset! *state {:table-filter "filter changed"})
+#+end_src
+
+Did you noticed the text-field showed the new value after you updated the state?
+
+This is the resulting window:
+[[file:si-step04-3-20.png]]
+
+**** 4.4 Get to the bones
+Now we are ready to build the skeleton of our application.
+
+My motto is to let the user be as much as possible in control over the layout. Thus we immediately add a splitter with the [[https://jenkov.com/tutorials/javafx/splitpane.html][JavaFX SplitPane]], to let him decide how big he wants the tables part versus the columns part.
+
+Here is a schema of what we will build in this step :
+[[file:si-step04-04-10.png]]
+
+#+begin_src clojure
+  ;; The skeleton of the application
+  (defn root-view [{{:keys [table-filter selected-table]} :state}]
+    {:fx/type :stage
+     :showing true
+     :title "SQL inspector"
+     :width 500
+     :height 300
+     :scene {:fx/type :scene
+             :root {:fx/type :v-box
+                    :children [{:fx/type :split-pane
+                                :items [{:fx/type :v-box
+                                         :children [{:fx/type :label
+                                                     :text "Table filter:"}
+                                                    {:fx/type :text-field
+                                                     :text table-filter}
+                                                    {:fx/type :label
+                                                     :text "Tables:"}]}
+                                        {:fx/type :v-box
+                                         :children [{:fx/type :label
+                                                     :text (str "Columns for table:"
+                                                                selected-table)}]}]}]}}})
+  ;; We updated the view, thus must re-render.
+  (renderer)
+
+  ;; The new root-view expects the key :selected-table in the state,
+  ;; so add it to the state.
+  ;; Because we renderer is watching *state (see step 4.3) the screen
+  ;; is immediately updated.
+  (reset! *state {:table-filter "some filter data xx"
+                  :selected-table "t_my_table"})
+#+end_src
+
+And this is the window so far:
+
+[[file:si-step04-04-20.png]]
+
+You might have noticed the splitter doesn't fill the complete window. Don't worry. For now, we are just working on the mechanics, not on the visuals.
+
+**** 4.5 Code cleanup
+If you take a look at the /root-view/ function, there is a lot of nesting going on.  And I foresee this will gain some more complexity.
+
+Therefore I decided to refactor this a little bit.  Let's move the rendering of the tables — the left side of the split-pane — and the rendering of the columns — the right side of the split-pane — in their own functions.
+
+#+begin_src clojure
+  ;; Move tables and columns in their own function
+  (defn tables-view [{:keys [table-filter]}]
+    {:fx/type :v-box
+     :children [{:fx/type :label
+                 :text "Table filter:"}
+                {:fx/type :text-field
+                 :text table-filter}
+                {:fx/type :label
+                 :text "Tables:"}]})
+
+  (defn columns-view [{:keys [selected-table]}]
+    {:fx/type :v-box
+     :children [{:fx/type :label
+                 :text (str "Columns for table: " selected-table)}]})
+
+  (defn root-view [{{:keys [table-filter selected-table]} :state}]
+    {:fx/type :stage
+     :showing true
+     :title "SQL inspector"
+     :width 500
+     :height 300
+     :scene {:fx/type :scene
+             :root {:fx/type :v-box
+                    :children [{:fx/type :split-pane
+                                :items [{:fx/type tables-view
+                                         :table-filter table-filter }
+                                        {:fx/type columns-view
+                                         :selected-table selected-table }]}]}}})
+  ;; We updated the view, thus must re-render.
+  (renderer)
+
+#+end_src
+
+*** Step 05 - Run something
+In the previous step 04, we've tried in the REPL to build our first version of the GUI.  In this step we'll use the stuff we learned.  Now we will update our application in such a way that /lein run/ will actually show our basic window.
+
+First of all we'll delete the functions /tables-view, columns-view, root-view/ and /renderer/ from the /(comment ...)/ block and create them into the source code above the /(comment ...)/.
+
+Second, we create a new function /initialize-cljfx/ to mount the state and the renderer.
+
+And finally the  /-main/ is changed to call the initialization function. We can then run the application on the commandline via /lein run/. Or we could launch the application via the REPL by evaluating /(-main)/
+
+#+begin_src clojure
+(defn initialize-cljfx []
+  (fx/mount-renderer *state renderer))
+
+(defn -main
+  [& args]
+  (initialize-cljfx))
+
+(comment
+
+  ;; run the application from the REPL
+  (-main)
+)
+#+end_src
+
+This is the last time you can see the different steps that I executed in the Repl. You can see these in the /(comment ...)/ block in Step 04.
+
+Now, please forgive me, but keeping this backlog of code I executed in the REPL involves a lot of copy paste work from my part. Besides, I assume you now get the idea how REPL development actually works. And thus, for all subsequent steps, I'll only commit the final code.
+
+*** Step 06 - Handle something
+Up to our first event handler.
+
+The goal for this step is to update the field /:table-filter/ in the /*state/ whenever the user enters text in the text field.
+
+Remember from the previous steps that cljfx is monitoring the state. And when something from the state has changed cljfx will update the window. To see this in action we'll temporary add a label to the /tables-view/ that shows the contents of the /*state/  /:table-filter/.
+
+#+begin_src clojure
+;; change this immediately in the code and evaluate that in the REPL
+(defn tables-view [{:keys [table-filter]}]
+  {:fx/type :v-box
+   :children [{:fx/type :label
+               :text "Table filter:"}
+              {:fx/type :text-field
+               :text table-filter}
+              {:fx/type :label
+               :text "Tables:"}
+              ;; temporary added
+              {:fx/type :label
+               :text (str ":table-filter contains " table-filter)}]})
+#+end_src
+
+And as we already know, after changing a view function we must call /renderer/.
+#+begin_src clojure
+  ;; Whenever we changed the user interface we must rerender
+  ;; This is something we will often do, so keep this in the comment
+  (renderer)
+#+end_src
+
+/*state/ is an atom, so we can give it a new value. Let's update :table-filter and see if cljfx picks it up.
+
+#+begin_src clojure
+  (swap! *state assoc :table-filter "Blah blah")
+#+end_src
+Did you notice — after you evaluated the previous expression — that both the textbox and the label were updated and they both show /Blah blah/?
+
+Of course we won't manually update the state when we want to use another filter.  Instead we'll use the  /on-text-changed/ handler of the text field to update the filter. In /cljfx/ we just need to add the keyword /:on-text-changed/ with as value a (anonymous) function.
+
+#+begin_src clojure
+(defn tables-view [{:keys [table-filter]}]
+  {:fx/type :v-box
+   :children [{:fx/type :label
+               :text "Table filter:"}
+              {:fx/type :text-field
+               :text table-filter
+               ;; handler
+               :on-text-changed #(swap! *state assoc :table-filter %)}
+              {:fx/type :label
+               :text "Tables:"}
+              ;; temporary added
+              {:fx/type :label
+               :text (str ":table-filter contains " table-filter)}]})
+#+end_src
+
+Now we are getting somewhere.  When you enter text in the textbox, the /:table-filter/ of the /*state/ gets updated.  Which in turn resulted in an update of the label.
+
+There is however a problem. The view function /tables-view/ now has to know the structure of /*state/. In other words, the view function is coupled to the state.
+
+Fortunately, cljfx let us also define an event handler as an arbitrary map. See the next step...
+
+*** Step 07 - Pure events in the view
+Let's use a map for the :on-text-changed event:
+#+begin_src clojure
+(defn tables-view [{:keys [table-filter]}]
+  {:fx/type :v-box
+   :children [{:fx/type :label
+               :text "Table filter:"}
+              {:fx/type :text-field
+               :text table-filter
+               ;; use a map
+               :on-text-changed {:event/type :update-table-filter}}
+              {:fx/type :label
+               :text "Tables:"}
+              {:fx/type :label
+               :text (str ":table-filter contains " table-filter)}]})
+#+end_src
+
+The /tables-view/ function is now again a pure function without side effects.
+
+These kind of events are handled asynchronous by /cljfx/.  We also need to provide a function to the renderer so it knows how to actually handles these map-events.
+
+#+begin_src clojure
+(defn map-event-handler [event]
+  ;; just print the event we get
+  (println "Event Received : " event ))
+#+end_src
+
+And we must tell the renderer to use our mapping function:
+#+begin_src clojure
+(def renderer
+  (fx/create-renderer
+   :middleware (fx/wrap-map-desc (fn [state]
+                                   {:fx/type root-view
+                                    :state state}))
+   :opts {:fx.opt/map-event-handler map-event-handler}))
+#+end_src
+
+To see these changes, you need to execute /(-main)/ in the REPL.  If this doesn't work then try to refresh the REPL and then execute /(-main)/ followed by  /(renderer)/. If you had an existing /Sql Inspector/ window open, then first close it before calling the /(renderer)/
+
+If everything went well, and you typed /abc/ in the text edit you will see the following output:
+#+begin_src clojure
+Event Received :  {:event/type :update-table-filter, :fx/event a}
+Event Received :  {:event/type :update-table-filter, :fx/event ab}
+Event Received :  {:event/type :update-table-filter, :fx/event abc}
+#+end_src
+
+We found out the structure of the /event/ parameter we receive in /map-event-handler/.  Now use it.
+
+I found out it is hard to get this reloaded in the REPL.  So I changed also the /println/ from outputting /"Event Received"/ to just /"Event:"/.  So we can see in the output that the latest handler is loaded.
+
+#+begin_src clojure
+(defn map-event-handler [event]
+  (println "Event : " event )
+  (case (:event/type event)
+    :update-table-filter  (swap! *state assoc :table-filter (:fx/event event))))
+#+end_src
+
+So just like before, close all open /Sql Inspector/ windows, re-evaluate /(-main)/ and /(renderer)/. And maybe restart the complete REPL when needed.
+
+The end result now is the label is automatically updated whenever you type something in the filter text edit.
+
+To recap how this event handling works :
+ - The user types a character in the text edit.
+ - That character is immediately shown in the text edit because of the OS Widget implementation.
+ - That widget generates an event /:on-text-changed/.
+ - We defined that the /:on-text-changed/ event should generate a /cljfx/ event  /:update-table-filter/.
+ - /cljfx/ will then handle that event asynchronously by calling our /map-event-handler/ function.
+ - That function will then finally update the  /:table-filter/ value of our /*state/.
+ - Which in turn will then update the /:text/ of both the text-edit and the temporary label.
+
+There is one issue with this in the rare case when the user types extremely fast. I mean, when he types sooooo fast that /cljfx/ events are piled up.
+
+Imagine the user types /"abc"/ really fast.  And /cljfx/ only starts to process the /:update-table-filter/ event for the /"a"/ after the user finished typing the /"abc"/.
+
+What will happen is that the text edit first will contain /"abc"/ because the OS Widget shows immediately what he types.  And then a moment later this is changed to /"a"/ because of the processing of the /:update-table-filter/ event. In the best case the user will experience some lagging, in the worst case he will miss some characters. (/cljfx/ got some ideas from /re-frame/ and here is the same issue explained : [[https://day8.github.io/re-frame/FAQs/laggy-input/][Why is my input field laggy?]])
+
+Fortunately the solution is simple: inform /cljfx/ to handle this evens synchronously.  Just notice this is only needed for text inputs.
+#+begin_src clojure
+(defn tables-view [{:keys [table-filter]}]
+  {:fx/type :v-box
+   :children [{:fx/type :label
+               :text "Table filter:"}
+              {:fx/type :text-field
+               :text table-filter
+               :on-text-changed {:event/type :update-table-filter
+                                 ;; handle this synchronously
+                                 :fx/sync true}}
+              {:fx/type :label
+               :text "Tables:"}
+              {:fx/type :label
+               :text (str ":table-filter contains " table-filter)}]})
+#+end_src
+*** Step 08 - Pure event handlers
+The event handler /map-event-handler/ that processes the event /:update-table-filter/ is still coupled to (and updates) the /*state/ atom. This makes testing hard because we must mock the state in our tests.
+
+It would be handy if the event handler could be just data in, data out. See the cljfx documentation [[https://github.com/cljfx/cljfx#event-handling-on-steroids][Event handling on steroids]].
+
+We have 2 things to do.
+
+First we need to get the /state/ as input to the event handler. The /cljfx/ function /wrap-co-effects/ does this for us and will pass the dereferenced /state/ to our handler.  The state will be inserted in the /event/ map.
+
+#+begin_src clojure
+(defn event-handler [event]
+  (println "event-handler:" event))
+
+;; Notice this is "def" and not "defn" as wrap-co-effects
+;; returns a function.
+(def map-event-handler
+    (-> event-handler
+        (fx/wrap-co-effects
+         {:state (fx/make-deref-co-effect *state)})
+        ))
+#+end_src
+
+This is again a modification of the cljfx initialization stuff. If you're still in the REPL then first close existing SQL Inspector windows. Then evaluate the complete source and execute /(-main)/.
+
+If we now type /"abc"/ in the search filter we get the following output:
+#+begin_src shell
+event-handler: {:event/type :update-table-filter, :fx/sync true, :fx/event a, :state {:table-filter , :selected-table }}
+event-handler: {:event/type :update-table-filter, :fx/sync true, :fx/event ab, :state {:table-filter , :selected-table }}
+event-handler: {:event/type :update-table-filter, :fx/sync true, :fx/event abc, :state {:table-filter , :selected-table }}
+#+end_src
+Notice we now have a key /:state/, so we no longer have to dereference the actual state.  It is just data /in/.
+
+Next step is to return the updated state.
+#+begin_src clojure
+(defn event-handler [e]
+  (println "event-handler:" e)
+  (let [{:keys [event/type fx/event state]} e]
+    (case type
+      :update-table-filter {:state (assoc state :table-filter event)})))
+#+end_src
+
+This is the data /out/. And it is easy to verify if the state (not the real state, but the :state in the returning map) is updated as expected.
+#+begin_src clojure
+(event-handler
+ {:event/type :update-table-filter
+  :fx/event "xyz"
+  :state {:table-filter "abc"}})
+=>{:state {:table-filter "xyz"}}
+#+end_src
+
+The last thing we have to do now is to use the value returned from the event to update the actual /State/ atom.  For this we use /wrap-effects/.
+
+#+begin_src clojure
+;; Notice this is "def" and not "defn" as wrap-co-effects and wrap-effects
+;; return a function.
+(def map-event-handler
+    (-> event-handler
+        (fx/wrap-co-effects
+         {:state (fx/make-deref-co-effect *state)})
+        (fx/wrap-effects
+         {:state (fn [state _] (reset! *state state))})))
+#+end_src
+
+When we now type something in the text box, the actual state will be updated.  And this causes the label to show also show what we have typed.
+*** End of Part 2
+This concludes the second part in the series.
+
+We created a basic window, learned  and discovered how we can react to events.  With these building blocks in our toolbox we are ready
+
+
+*** TODO :
+Subscriptions and context[[https://github.com/cljfx/cljfx#subscriptions-and-contexts][GitHub - cljfx/cljfx: Declarative, functional and extensible wrapper of JavaF...]]
+
+
+* Footnotes
+* COMMENT Local Variables                          :ARCHIVE:
+# Local Variables:
+# eval: (org-hugo-auto-export-mode)
+# End:
