@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>HOME on Clojure Mini Applications Step by Step</title>
+    <link>https://example.com/</link>
+    <description>Recent content in HOME on Clojure Mini Applications Step by Step</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language><atom:link href="https://example.com/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title></title>
+      <link>https://example.com/posts/blog/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://example.com/posts/blog/</guid>
+      <description>My blog HOME Dit is de home van mijn blog !
+SQL Inspector : Clojure + JDBC + JavaFX Desktop application What? &amp;ldquo;SQL Inspector&amp;rdquo; is a desktop application written in Clojure. It shows all tables of a database. There is a textbox that you can use to filter the tables. Selecting a table will show all its columns and types.
+Technology I&amp;rsquo;ll use the clojure libraries cljfx and next-jdbc
+Step 01 - Database connection You need to download JavaFX from Gluon.</description>
+    </item>
+    
+    <item>
+      <title>SQL Inspector : Clojure &#43; JDBC &#43; JavaFX Desktop application</title>
+      <link>https://example.com/sql-inspector/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://example.com/sql-inspector/</guid>
+      <description>This mini application is called &amp;ldquo;SQL Inspector&amp;rdquo;.
+It is a desktop JavaFX application that connects to a database via JDBC. All tables of that database are shown. You can apply a filter if you wish. Selecting a table will show all its columns and types.
+I&amp;rsquo;ll use the clojure libraries cljfx and next-jdbc
+Prerequisites You need to download JavaFX from Gluon. At the moment of writen version 17.0.2 is the version with Long Term Suppport.</description>
+    </item>
+    
+  </channel>
+</rss>
