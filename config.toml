@@ -31,10 +31,10 @@ url = "/"
 weight = 1
 
 #Pascal : geen "Tags" Menu
-#[[menu.nav]]
-#name = "Tags"
-#url = "/tags/"
-#weight = 2
+[[menu.nav]]
+name = "Tags"
+url = "/tags/"
+weight = 2
 
 [[menu.nav]]
 name = "About"

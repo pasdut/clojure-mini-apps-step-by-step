@@ -1,3 +1,4 @@
+#+STARTUP: content
 #+hugo_base_dir: .
 * My blog
 :PROPERTIES:
@@ -62,14 +63,14 @@ Changed database context to 'test_db'.
 1> grant alter on schema::dbo to test_user
 2> go
 1> grant create table to test_user
-2> go        
+2> go
 1> grant references to test_user
 2> go
 1> alter login sa with password = 'NewPassw0rd!'
 2> go
 1> quit
 #+end_src
-  
+
 And finally, when we've finished playing with the container we must stop it. And equally important - because we gave the container a name -  we must also remove the container. If we don't delete,  we won't be able to restart the container the next time.
 
     #+begin_src bash
@@ -268,7 +269,7 @@ Let's beef up our database with some tables :
 And now the real work : extract the table names from the database. In Sql Server we find this info in /sys.tables/.
 
 #+begin_src clojure
-  (jdbc/execute! ds [(str "select name, create_date, modify_date as table_name \n"
+  (jdbc/execute! ds [(str "select name as table_name, create_date, modify_date \n"
                           "from sys.tables order by name") ])
 #+end_src
 
@@ -308,7 +309,6 @@ Test in the REPL if the new functions work as expected.
 *** End of Part 1
 
 This finishes the end of the first Part.  Now we are able to get the needed data from the database. In Part 2 we will start with the UI
-
 
 
 
@@ -588,6 +588,7 @@ And as we already know, after changing a view function we must call /renderer/.
   ;; This is something we will often do, so keep this in the comment
   (renderer)
 #+end_src
+[[file:si-step06-10.png]]
 
 /*state/ is an atom, so we can give it a new value. Let's update :table-filter and see if cljfx picks it up.
 
@@ -696,7 +697,7 @@ Imagine the user types /"abc"/ really fast.  And /cljfx/ only starts to process 
 
 What will happen is that the text edit first will contain /"abc"/ because the OS Widget shows immediately what he types.  And then a moment later this is changed to /"a"/ because of the processing of the /:update-table-filter/ event. In the best case the user will experience some lagging, in the worst case he will miss some characters. (/cljfx/ got some ideas from /re-frame/ and here is the same issue explained : [[https://day8.github.io/re-frame/FAQs/laggy-input/][Why is my input field laggy?]])
 
-Fortunately the solution is simple: inform /cljfx/ to handle this evens synchronously.  Just notice this is only needed for text inputs.
+Fortunately the solution is simple: inform /cljfx/ to handle this event synchronously.  Just notice this is only needed for text inputs.
 #+begin_src clojure
 (defn tables-view [{:keys [table-filter]}]
   {:fx/type :v-box
@@ -775,16 +776,566 @@ The last thing we have to do now is to use the value returned from the event to 
          {:state (fn [state _] (reset! *state state))})))
 #+end_src
 
-When we now type something in the text box, the actual state will be updated.  And this causes the label to show also show what we have typed.
+When we now type something in the text box, the actual state will be updated.  And this causes the label to show what we have typed.
 *** End of Part 2
 This concludes the second part in the series.
 
-We created a basic window, learned  and discovered how we can react to events.  With these building blocks in our toolbox we are ready
+We created a basic window, learned and discovered how we can react to events.  With these building blocks in our toolbox we can go on building our application.
+Part 3, here we come...
 
 
-*** TODO :
-Subscriptions and context[[https://github.com/cljfx/cljfx#subscriptions-and-contexts][GitHub - cljfx/cljfx: Declarative, functional and extensible wrapper of JavaF...]]
+** SQL Inspector : Clojure + JDBC + JavaFX Desktop application - Part 3
+:PROPERTIES:
+:EXPORT_FILE_NAME: sql-inspector-part3
+:END:
 
+*** Step 09 - Show the tables
+Now it is time to visualize the tables.
+
+For this we extend the state with a new key /:tables/.  And we update /(-main)/ to actually retrieve the tables.
+
+#+begin_src clojure
+(def *state
+  (atom {:table-filter ""
+         :selected-table ""
+         :tables []}))
+
+(defn -main
+  [& args]
+  (swap! *state assoc :tables (retrieve-all-tables))
+  (initialize-cljfx))
+#+end_src
+
+Do not forget to re-execute /(-main)/ to be sure the tables are actually loaded in /state/ for your current REPL. And in some cases you must completely reload the file too. This is because the event /:update-table-filter/ messes with the state and the /:tables/ are lost if you don't reload the full file after modifying the /state/.
+
+
+Just to be sure, let's check whether the /state/ now contains the tables:
+
+#+begin_src clojure
+sqlinspector.core> *state
+;; => #<Atom@1e3168e8:
+  {:table-filter "",
+   :selected-table "",
+   :tables
+   [{:table_name "t_address_type",
+     :create_date #inst "2022-03-25T21:02:17.320000000-00:00",
+     :modify_date #inst "2022-03-25T21:16:14.677000000-00:00"}
+    {:table_name "t_customer",
+     :create_date #inst "2022-03-25T21:02:13.880000000-00:00",
+     :modify_date #inst "2022-03-25T21:16:14.677000000-00:00"}
+    {:table_name "t_customer_address",
+     :create_date #inst "2022-03-25T21:16:14.677000000-00:00",
+     :modify_date #inst "2022-03-25T21:16:14.677000000-00:00"}]}>
+#+end_src
+
+(Remark: I also fixed a typo in /retrieve-all-tables/.  The field /modify_date/ was incorrectly aliased to /table_name/)
+
+
+Let's display a /table view/ that contains the table names.
+
+We could have used a /list view/ because we only have one column.  However we might add additional columns in the future like creation date or number of records in the table. Therefore we'll stick with /table view/.
+
+In the cljfx [[https://github.com/cljfx/cljfx/tree/master/examples][examples]] folder, the example [[https://github.com/cljfx/cljfx/blob/master/examples/e27_selection_models.clj][e27_selection_models]] teaches us how we can display a /table view/.
+
+We need an event to know when the selection is changed. That's why we use /cljfx.ext.list-view/with-selection-props/, just like in the example.
+
+First of all, we must add a new /require/:
+
+#+begin_src clojure
+(ns sqlinspector.core
+  (:gen-class)
+  (:require [next.jdbc :as jdbc]
+            [cljfx.api :as fx]
+            [cljfx.ext.table-view :as fx.ext.table-view])
+  )
+#+end_src
+
+Next, we update the /tables-view/ function to actually create the table-view. It is yet unclear to me what data I get.  Therefore I add a /println/ and return some dummy text.
+
+
+#+begin_src clojure
+(defn tables-view [{:keys [table-filter tables]}]
+  {:fx/type :v-box
+   :children [{:fx/type :label
+               :text "Table filter:"}
+              {:fx/type :text-field
+               :text table-filter
+               ;; use a map
+               :on-text-changed {:event/type :update-table-filter
+                                 :fx/sync true}}
+              {:fx/type :label
+               :text "Tables:"}
+              ;; temporary added
+              {:fx/type :label
+               :text (str ":table-filter contains " table-filter)}
+              {:fx/type fx.ext.table-view/with-selection-props
+               :props {:selection-mode :single}
+               :desc {:fx/type :table-view
+                      :columns [{:fx/type :table-column
+                                 :text "Tablename"
+                                 :cell-value-factory identity
+                                 :cell-factory {:fx/cell-type :table-cell
+                                                :describe (fn [x]
+                                                            (println "Data for the cell Tablename is:" x)
+                                                            {:text "DUMMY TEXT"})}}]
+                      :items tables }}]})
+#+end_src
+
+We now have an extra parameter /tables/, se we must pass that from the /root-view/ to /tables-view/:
+
+#+begin_src clojure
+(defn root-view [{{:keys [table-filter selected-table tables]} :state}]
+  {:fx/type :stage
+   :showing true
+   :title "SQL inspector"
+   :width 500
+   :height 300
+   :scene {:fx/type :scene
+           :root {:fx/type :v-box
+                  :children [{:fx/type :split-pane
+                              :items [{:fx/type tables-view
+                                       :table-filter table-filter
+                                       :tables tables}
+                                      {:fx/type columns-view
+                                       :selected-table selected-table}]}]}}})
+#+end_src
+
+After calling /(renderer)/ we see the result of the /print/ statements:
+
+#+begin_src clojure
+Data for the cell Tablename is: {:table_name t_address_type, :create_date #inst "2022-03-25T21:02:17.320000000-00:00", :modify_date #inst "2022-03-25T21:16:14.677000000-00:00"}
+Data for the cell Tablename is: {:table_name t_customer, :create_date #inst "2022-03-25T21:02:13.880000000-00:00", :modify_date #inst "2022-03-25T21:16:14.677000000-00:00"}
+Data for the cell Tablename is: {:table_name t_customer_address, :create_date #inst "2022-03-25T21:16:14.677000000-00:00", :modify_date #inst "2022-03-25T21:16:14.677000000-00:00"}
+#+end_src
+
+It seems we get the table data as parameter to the /describe/ function of the /cell-factory/. Let's change parameter /x/ to something meaningful, like /table-data/. For now we just visualize the /:table_name/. And lets comment out the /println/ statement:
+#+begin_src clojure
+:cell-factory {:fx/cell-type :table-cell
+               :describe (fn [table-data]
+                           #_(println "Data for the cell Tablename is:" table-data)
+                           {:text (:table_name table-data) })}
+#+end_src
+
+After /(renderer)/ we get the following result:
+
+[[file:si-step09-10.png]]
+
+*** Step 10 - Context
+
+For now, the tables in the list are not yet filtered.
+
+However, before we fix this, let's first introduce the concept of /context/.  See explanation in the official cljfx documentation : [[https://github.com/cljfx/cljfx#subscriptions-and-contexts][Subscriptions and Context]].
+
+The idea is that the views shouldn't know the full structure of the state. Instead a view should subscribe to a piece of data. Additionally, values can be cached so a view will only render when the actual value it depends on is changed. An example: the user keeps adding characters to the filter. If the list of filtered tables doesn't change after updating the filter text, the view won't be rendered again.
+**** 10.1 Add /core.cache/
+Whenever we use /cljfx contexts/ we must add the /core.cache/ dependency.
+
+Update /project.clj/
+#+begin_src clojure
+;; project.clj
+:dependencies [[org.clojure/clojure "1.10.1"]
+                 [com.github.seancorfield/next.jdbc "1.2.772"]
+                 [com.microsoft.sqlserver/mssql-jdbc "10.2.0.jre11"]
+                 [cljfx "1.7.16"]
+                 [org.clojure/core.cache "0.7.1"]  ;;--- ADDED ---
+                 ]
+#+end_src
+
+Add to /:require/ in /core.clj/:
+#+begin_src clojure
+;; core.clj
+(ns sqlinspector.core
+  (:gen-class)
+  (:require [next.jdbc :as jdbc]
+            [cljfx.api :as fx]
+            [cljfx.ext.table-view :as fx.ext.table-view]
+            [clojure.core.cache :as cache])  ;;--- ADDED ---
+  )
+#+end_src
+
+Don't forget to restart your REPL to load the new module and then also reload the complete /core.clj/ file in your REPL.
+**** 10.2 Start using Context
+Update the source to use /context/.
+
+First of all, the /state/ is now a /context/:
+#+begin_src clojure
+(def *state
+  (atom (fx/create-context  ;;--- ADDED ---
+         {:table-filter ""
+          :selected-table ""
+          :tables []}
+         cache/lru-cache-factory)))  ;;--- ADDED ---
+#+end_src
+
+Add some middle ware to pass the /context/ through the /option/ map.
+
+#+begin_src clojure
+(def renderer
+  (fx/create-renderer
+   :middleware (comp ;;--- ADDED --- middleware is now a composition of multiple functions
+                ;; Pass context to every lifecycle as part of option map
+                fx/wrap-context-desc ;;--- ADDED ---
+                (fx/wrap-map-desc (fn [_]{:fx/type root-view})))
+   :opts {:fx.opt/map-event-handler map-event-handler
+          :fx.opt/type->lifecycle #(or (fx/keyword->lifecycle %);;--- ADDED ---
+                                       ;; For functions in ':fx/type' values, pass
+                                       ;; context from option map to these functions
+                                       (fx/fn->lifecycle-with-context %))}));;--- ADDED ---
+#+end_src
+
+The /root-view/ no longer needs to pass data to /tables-view/ and /columns-view/. Heck, /root-view/ can just ignore its own parameters
+
+#+begin_src clojure
+(defn root-view [_] ;;--- IGNORE PARAMETER ---
+  {:fx/type :stage
+   :showing true
+   :title "SQL inspector"
+   :width 500
+   :height 300
+   :scene {:fx/type :scene
+           :root {:fx/type :v-box
+                  :children [{:fx/type :split-pane
+                              :items [{:fx/type tables-view} ;;--- NO MORE PARAMETER PASSING ---
+                                      {:fx/type columns-view}]}]}}});;--- NO MORE PARAMETER PASSING ---
+#+end_src
+
+
+The function /columns-view/ no longer receives the /selected-table/ as parameter. Instead a context is received.  The  /columns-view/ should now extract the /selected-table/ value from the /context/ via the /fx/sub-val/ function.
+#+begin_src clojure
+(defn columns-view [{:keys [fx/context]}] ;;--- PARAMETER NOW CONTAINS CONTEXT ---
+  {:fx/type :v-box
+   :children [{:fx/type :label
+               :text (str
+                      "Columns for table: "
+                      (fx/sub-val context :selected-table))}]}) ;;--- USE "sub-val" ---
+#+end_src
+
+The /tables-view/ function must also be converted to using context.
+
+#+begin_src clojure
+(defn tables-view [{:keys [fx/context]}];;--- PARAMETER NOW CONTAINS CONTEXT ---
+  {:fx/type :v-box
+   :children [{:fx/type :label
+               :text "Table filter:"}
+              {:fx/type :text-field
+               :text (fx/sub-val context :table-filter);;--- USE "sub-val" ---
+               ;; use a map
+               :on-text-changed {:event/type :update-table-filter
+                                 :fx/sync true}}
+              {:fx/type :label
+               :text "Tables:"}
+              ;; temporary added
+              {:fx/type :label
+               :text (str
+                      ":table-filter contains "
+                      (fx/sub-val context :table-filter))};;--- USE "sub-val" ---
+              {:fx/type fx.ext.table-view/with-selection-props
+               :props {:selection-mode :single}
+               :desc {:fx/type :table-view
+                      :columns [{:fx/type :table-column
+                                 :text "Tablename"
+                                 :cell-value-factory identity
+                                 :cell-factory
+                                 {:fx/cell-type :table-cell
+                                  :describe (fn [table-data]
+                                              #_(println "Data for the cell Tablename is:" table-data)
+                                              {:text (:table_name table-data) })}}]
+                      :items (fx/sub-val context :tables)}}]});;--- USE "sub-val" ---
+#+end_src
+
+The function /(-main)/ loads all the table names in the /state/.  This /state/ is now a /context/ so we must use /fx/swap-context/ to load all tables.
+#+begin_src clojure
+(defn -main
+  [& args]
+  (reset! *state (fx/swap-context @*state assoc :tables (retrieve-all-tables)))
+  (initialize-cljfx))
+#+end_src
+
+At this point of the refactoring to use /context/ we can already execute /(-main)/ and see if the changes work. Normally you should see all table names, the same as the screenshot from the previous step 09.
+
+Remember, we didn't update the event handling yet. So you'll probably get an error as soon as you type something in the text field!
+
+Let's manually set the filter with /fx/swap-context/ and see if this works...
+#+begin_src clojure
+(reset! *state (fx/swap-context @*state assoc :table-filter "Blah blah"))
+#+end_src
+
+Executing the previous line in the REPL should update the search filter in the application.
+
+The /event-handler/ function should also update the context via /swap-context/
+#+begin_src clojure
+(defn event-handler [e]
+  (println "event-handler:" e)
+  (let [{:keys [event/type fx/event fx/context]} e] ;;--- use fx/context ---
+    (case type
+      :update-table-filter {:context (fx/swap-context context assoc :table-filter event)})));;--- USE "swap-context" ---
+#+end_src
+
+Now we need to pass the context to the event handler as a co-effect.
+And, based on [[https://github.com/cljfx/cljfx/blob/master/examples/e18_pure_event_handling.clj][examples/e18_pure_event_handling.clj]], we also define 2 effects /:context/ and /:dispatch/. If these keys are returned by the event handler, the corresponding effect will be executed. See also : [[https://github.com/cljfx/cljfx#event-handling-on-steroids][cljfx doc : Event handling on steroids]]
+#+begin_src clojure
+(def map-event-handler
+    (-> event-handler
+        (fx/wrap-co-effects
+         ;;--- Pass the deref state as :fx/context to the event-handler  ---
+         {:fx/context (fx/make-deref-co-effect *state)})
+        (fx/wrap-effects
+         ;;--- what to do if event handler returns :context or :dispatch---
+         {:context (fx/make-reset-effect *state)
+          :dispatch fx/dispatch-effect})))
+#+end_src
+
+Remark that we changed the event-handler, which is a crucial part of the application.  These changes are not easily picked up by the REPL.  It is important to close the running REPL, restart it and reload the source.  Then you can execute the /(-main)/ function to start the application.
+
+The end result is we simplified the parameters to the view functions by passing only the /context/.  With the additional bonus that the values are cached and a view is only regenerated when the value is actually changed.
+
+*** Step 11 - Apply filtering
+
+Now we can begin to filter the tables list.
+
+We could do the filtering directly in /tables-view/. However, I'd rather keep data manipulation out of the view logic.
+
+Let's try if we get the filtering to work, without using cljfx specifics. We opt for a case insensitive search. As a matter of test we try to get all tables that matches the search text /"CUST"/. Execute the following in the REPL to see if we get the expected result.
+#+begin_src clojure
+(let [tables (retrieve-all-tables)
+        table-filter "CUST"
+        table-filter-pattern (re-pattern (str "(?i).*" table-filter ".*"))]
+    (filter #(re-matches table-filter-pattern (:table_name %)) tables))
+;; => ({:table_name "t_customer",
+;; =>   :create_date #inst "2022-03-25T21:02:13.880000000-00:00",
+;; =>   :modify_date #inst "2022-03-25T21:16:14.677000000-00:00"}
+;; =>  {:table_name "t_customer_address",
+;; =>   :create_date #inst "2022-03-25T21:16:14.677000000-00:00",
+;; =>   :modify_date #inst "2022-03-25T21:16:14.677000000-00:00"})
+#+end_src
+It seems to be working.
+
+Now we can create a subscription function. (See explanation in the official cljfx documentation : [[https://github.com/cljfx/cljfx#subscriptions-and-contexts][Subscriptions and Context]])
+#+begin_src clojure
+(defn subs-filtered-tables
+  "Returns all tables that satisfy to the search text."
+  [context]
+  (let [tables (fx/sub-val context :tables)
+        table-filter (fx/sub-val context :table-filter)
+        table-filter-pattern (re-pattern (str "(?i).*" table-filter ".*"))]
+    (filter #(re-matches table-filter-pattern (:table_name %)) tables)))
+#+end_src
+
+Rest us to modify the /tables-view/ function to use that subscription via /fx/sub-ctx/
+#+begin_src clojure
+(defn tables-view [{:keys [fx/context]}]
+  {:fx/type :v-box
+   :children [;; ...
+              {:fx/type fx.ext.table-view/with-selection-props
+               :props {:selection-mode :single}
+               :desc {:fx/type :table-view
+                      :columns [
+                                 ;; ...
+                                ]
+                      :items (fx/sub-ctx context subs-filtered-tables)}}]}) ;;--- USE SUBSCRIPTION ---
+#+end_src
+
+If you now evaluate /(renderer)/ in the REPL you'll see the filtering is now working.
+*** Step 12 - Table selection
+**** 12.1 Select a table from the list
+Before we can show the columns, we must know what table is clicked on. We can do this by responding to the /:on-selected-item-changed/ event. Let's fire the event /:select-table/ as a responce.
+#+begin_src clojure
+(defn tables-view [{:keys [fx/context]}]
+  {:fx/type :v-box
+   :children [;; ...
+              {:fx/type fx.ext.table-view/with-selection-props
+               :props {:selection-mode :single
+                       :on-selected-item-changed {:event/type :select-table}} ;; NEW EVENT
+               ;; ...
+               }]})
+#+end_src
+
+And handle that event appropriately.
+#+begin_src clojure
+(defn event-handler [e]
+  (println "event-handler:" e)
+  (let [{:keys [event/type fx/event state]} e]
+    (case type
+      :update-table-filter {:state (fx/swap-context state assoc :table-filter event)}
+      ;; NEW EVENT
+      :select-table {:state (fx/swap-context state assoc :selected-table (:table_name event))})))
+#+end_src
+
+Because we updated the event-handler we must unfortunately quit and restart the REPL to have it in effect.
+But once the app is up and running again, whenever we select a table that table name appears on the  columns header.
+[[file:si-step12-10.png]]
+
+**** 12.2 Multi method event handling
+
+The function /event-handler/ is on its way to become a huge monster /case/ statement. (Yes I hear you, 2 clauses is not really too big, I know)
+
+Let's refactor it via a multi methods.
+
+#+begin_src clojure
+(defmulti event-handler :event/type)
+
+(defmethod event-handler :default [event]
+  (println "Unhandled event")
+  (prn event)
+  )
+
+(defmethod event-handler :update-table-filter [{:keys [state fx/event]}]
+  (println ":update-table-filter --->" event)
+  {:state (fx/swap-context state assoc :table-filter event)})
+
+(defmethod event-handler :select-table [{:keys [state fx/event]}]
+  (let [table-name (:table_name event)]
+    (println ":select-table --> " table-name)
+    {:state (fx/swap-context state assoc :selected-table table-name)}))
+#+end_src
+
+Once again, we must restart the REPL and reload the source.  However it is the last time we need a full restart of the REPL. For some reason, updating a branch on a multimethod gets immediately picked up by the REPL. You can see this if you change the text in the /println/, re-evaluate that /defmethod/, and bam, it has effect.
+
+**** 12.3 Auto table selection
+It would be nice if the first table of the list will be selected automatically whenever the filter is changed.
+
+Say we have an empty filter and we clicked the first table to select it. On the right side we see /Columns for table: t_address_type/.
+[[file:si-step12-30.png]]
+
+If we now type /"cus"/ in the /table filter/, the table /t_address_type/ disappears from the table view. However the current selected table (see green) still remains /t_address_type/.
+
+[[file:si-step12-31.png]]
+
+What we actually want is to select automatically the first table whenever the table list is changed.
+
+Adhering to the single responsibility principle we create a new event /select-visible-table/. That event will be fired by the /update-table-filter/. This is achieved because we return the key /:dispatch/.
+
+#+begin_src clojure
+;;--- NEW EVENT ---
+(defmethod event-handler :select-visible-table [{:keys [fx/context fx/event]}]
+  (println ":select-visible-table "))
+
+(defmethod event-handler :update-table-filter [{:keys [fx/context fx/event]}]
+  (println ":update-table-filter --->" event)
+  {:context (fx/swap-context context assoc :table-filter event)
+   :dispatch {:event/type :select-visible-table}}) ;;--- EMIT THE NEW EVENT ---
+#+end_src
+
+If we now change the table filter (by typing in the textbox), the text /":select-visible-table"/ is printed on the output.
+
+The next step is to create a subscription function that actually returns the first table.
+#+begin_src clojure
+(defn subs-visible-table-to-select
+  "Return the table from the visible table list that must be selected"
+  [context]
+  (let [tables (fx/sub-ctx context subs-filtered-tables)]
+    (first tables)))
+#+end_src
+
+When the filter is empty, the first table should be /t_address_type/. Let's check this by executing the following code in the repl:
+
+#+begin_src clojure
+  (reset! *state (fx/swap-context @*state assoc :table-filter ""))
+  (println (fx/sub-ctx @*state subs-visible-table-to-select))
+  ;;==> {:table_name t_address_type, :create_date ...}
+#+end_src
+
+And when the filter is /cus/, the first table should be /t_customer/:
+
+#+begin_src clojure
+  (reset! *state (fx/swap-context @*state assoc :table-filter "cus"))
+  (println (fx/sub-ctx @*state subs-visible-table-to-select))
+  ;;==> {:table_name t_customer, :create_date ...}
+#+end_src
+
+Woo-hoo, it works!  Let's incorporate this in the /select-visible-table/ event.
+
+#+begin_src clojure
+(defmethod event-handler :select-visible-table [{:keys [fx/context fx/event]}]
+  (let [table-name (:table_name (fx/sub-ctx context subs-visible-table-to-select))]
+    (println ":select-visible-table --> table = " table-name)
+    {:context (fx/swap-context context assoc :selected-table table-name)}))
+#+end_src
+
+If we now play with the table-filter the first table is selected in the state. This means whatever filter you type, the right side /Columns for table: xxx/ always shows the first table of the visible tables.
+
+**** 12.4 Show the selected table
+We have a slightly cosmetic problem.  If we use the filter /cus/ the first matching table is selected.  In this case it is /t_customer/, which is visible in the header on the right. However, this is not visible in the table view on the left.
+
+[[file:si-step12-40.png]]
+
+From the example [[https://github.com/cljfx/cljfx/blob/master/examples/e27_selection_models.clj][examples/e27_selection_models.clj]] it seems we should set the property /:selected-item/. The documentation in [[https://github.com/cljfx/cljfx/blob/master/src/cljfx/ext/table_view.clj][cljfx source ext/table_view.clj]], says that we should pass the same value as from table-view's items.
+
+Now we have an issue: we need the complete table data to select a row in the table-view.  But we store only the table_name in /:selected-table/ in our state.
+
+We could write a new subscription that returns the full table data for the selected table name. However, I love the KISS principle.  And I see no particular reason to save only the table_name in /:selected-table/.  From now on, we'll store the complete table data.
+
+Thus we need to change the handler for /:select-table/
+#+begin_src clojure
+(defmethod event-handler :select-table [{:keys [fx/context fx/event]}]
+  (println ":select-table --> " (:table-name event))
+  {:context (fx/swap-context context assoc :selected-table event)});;--- SAVE FULL EVENT(=TABLE DATA) ---
+#+end_src
+
+And also the /:select-visible-table/ event.
+
+#+begin_src clojure
+(defmethod event-handler :select-visible-table [{:keys [fx/context fx/event]}]
+  (let [table (fx/sub-ctx context subs-visible-table-to-select)]
+    (println ":select-visible-table --> table = " (:table_name table))
+    {:context (fx/swap-context context assoc :selected-table table)}));;--- SAVE FULL TABLE DATA ---
+#+end_src
+
+For the /columns-view/ we need to extract just the table name.
+#+begin_src clojure
+(defn columns-view [{:keys [fx/context]}]
+  {:fx/type :v-box
+   :children [{:fx/type :label
+               :text (str "Columns for table: "
+                          (:table_name (fx/sub-val context :selected-table)))}]});;--- ONLY TABLENAME ---
+#+end_src
+
+(Remember: we changed a view procedure so you must execute /(renderer)/ in the REPL to see the changes)
+
+Now we can use the /:selected-item/ property on the /table-view/ to automatically select the table in the table-view based on the value in the state's /:selected-table/
+#+begin_src clojure
+(defn tables-view [{:keys [fx/context]}]
+  {:fx/type :v-box
+   :children [;; ...
+              {:fx/type fx.ext.table-view/with-selection-props
+               :props {:selection-mode :single
+                       :on-selected-item-changed {:event/type :select-table}
+                       :selected-item (fx/sub-val context :selected-table)};;--- SHOW SELECTED TABLE ---
+               :desc {:fx/type :table-view
+                      ;; ...
+                      }}]})
+#+end_src
+
+**** 12.5 Improve User Experience
+There is still an inconvenience.
+
+Suppose we have an empty filter.  And we select the table /t_customer_address/.
+[[file:si-step12-50.png]]
+
+If we now type /cus/ in the filter text edit, the first visible table /t_customer/ gets selected.
+
+[[file:si-step12-51.png]]
+
+This is a bit annoying because we previously selected /t_customer_address/. Because that selected table also occurs after filtering I expect that table to remain selected.
+
+All we have to do is change /subs-visible-table-to-select/ to return the current selected table if that is still present in the new filtered list. Only if the current selected table is not in the new filtered list we return the first table from the list.
+
+
+
+#+begin_src clojure
+(defn subs-visible-table-to-select
+  "Return the table from the visible table list that must be selected"
+  [context]
+  (let [tables (fx/sub-ctx context subs-filtered-tables)
+        first-table (first tables)
+        selected-table (fx/sub-val context :selected-table)
+        contains-selected-table (some? (some #(= (:table_name selected-table) (:table_name %)) tables)) ]
+    (println "subs-visible-table-to-select (contains-selected-table = " contains-selected-table ")")
+    (if contains-selected-table
+                             selected-table
+                             first-table)))
+#+end_src
+*** Step 13 - Show the columns
 
 * Footnotes
 * COMMENT Local Variables                          :ARCHIVE:

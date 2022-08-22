@@ -278,7 +278,7 @@ Let's beef up our database with some tables :
 And now the real work : extract the table names from the database. In Sql Server we find this info in _sys.tables_.
 
 ```clojure
-  (jdbc/execute! ds [(str "select name, create_date, modify_date as table_name \n"
+  (jdbc/execute! ds [(str "select name as table_name, create_date, modify_date \n"
                           "from sys.tables order by name") ])
 ```
 
