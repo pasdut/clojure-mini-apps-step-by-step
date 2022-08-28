@@ -1,24 +1,38 @@
 #+STARTUP: content
-#+hugo_base_dir: .
-* My blog
+#+hugo_base_dir: ./hugo/
+
+# The files will be saved in <hugo_base_dir>/content/<hugo_section>/<concatenated values of EXPORT_HUGO_SECTION_FRAG>
+#+hugo_section: posts
+
+* HOME
 :PROPERTIES:
-:EXPORT_HUGO_SECTION:
-:END:
-** HOME
-:PROPERTIES:
+:EXPORT_HUGO_SECTION:/
 :EXPORT_FILE_NAME: _index
 :END:
-Dit is de home van mijn blog !
-
-** SQL Inspector : Clojure + JDBC + JavaFX Desktop application - Part 1
+Is dit de HOME ?
+Is dit de HOME ?
+Is dit de HOME ?
+Is dit de HOME ?
+** SQL Inspector : Clojure + JDBC + JavaFX Desktop application
 :PROPERTIES:
-:EXPORT_FILE_NAME: sql-inspector-part1
+:EXPORT_FILE_NAME: _index
+:EXPORT_HUGO_SECTION_FRAG: sql-inspector
 :END:
-*** What?
+Dit is de home van SQL Inspector
+Dit is de home van SQL Inspector
+Dit is de home van SQL Inspector
+Dit is de home van SQL Inspector
+Dit is de home van SQL Inspector
+
+*** SQL Inspector : Part 1
+:PROPERTIES:
+:EXPORT_FILE_NAME: part1
+:END:
+**** What?
 "SQL Inspector" is a desktop application written in Clojure.  It shows all tables of a database. There is a textbox that you can use to filter the tables. Selecting a table will show all its columns and types.
 [[/si-sketch-v2.png]]
 
-*** Setup and configure Database Container
+**** Setup and configure Database Container
 This is a database application, thus we need a database.  I'll go for MS SQL Server because that is the database I use on my current project.
 
 Fortunately there is a Docker container [[https://hub.docker.com/_/microsoft-mssql-server][here]] from Docker Hub so it will run on linux too. Check the install info at: [[https://docs.microsoft.com/en-us/sql/linux/quickstart-install-connect-docker?view=sql-server-ver15&pivots=cs1-bash][Docker: Install containers for SQL Server on Linux - SQL Server | Microsoft Docs]].
@@ -78,7 +92,7 @@ And finally, when we've finished playing with the container we must stop it. And
     sudo docker rm sqlserver2019
     #+end_src
 
-*** Practical stuff
+**** Practical stuff
 You can find the code at https://github.com/pasdut/sqlinspector/.
 Every step has its own branch.
 If you want to follow along there are a couple of possibilities, depending on your own personal preferences:
@@ -142,7 +156,7 @@ The latest commit is the one that is actually added in this step.  If you click 
 Green is what has been added, red is what has been removed. In the example below you'll notice the single line /:dependencies/ is replaced by a /:dependencies/ that now spans multiple lines.
 [[file:si-gh-05.png][file:si-gh-05-s.png]]
 
-*** Step 01 - Create application
+**** Step 01 - Create application
 Let's create a new application via [[https://leiningen.org/][Leiningen]].  And while we're here, let's also immediately test if the application runs. Just to be sure everything is correctly installed.
 #+begin_src
 ~$ lein new app sqlinspector
@@ -151,7 +165,7 @@ Let's create a new application via [[https://leiningen.org/][Leiningen]].  And w
 Hello, World!
 #+end_src
 
-*** Step 02 - JDBC Database connection experimentation in the REPL
+**** Step 02 - JDBC Database connection experimentation in the REPL
 Data access is via [[https://docs.oracle.com/javase/8/docs/technotes/guides/jdbc/][Java JDBC API]]. And on top of JDBC we have the clojure library [[https://github.com/seancorfield/next-jdbc][next-jdbc]].
 First of all we must include the dependencies for [[https://github.com/seancorfield/next-jdbc][next.jdbc]] and the [[https://docs.microsoft.com/en-us/sql/connect/jdbc/download-microsoft-jdbc-driver-for-sql-server?view=sql-server-ver15][JDBC driver for MS SQL]].  There is no need to manually download the JDBC driver, /lein/ will take care of that for us.
 #+begin_src clojure
@@ -292,7 +306,7 @@ We can find the columns of a given table in /sys.columns/:
                     table-name]))
 #+end_src
 
-*** Step 03 - Create the database related functions
+**** Step 03 - Create the database related functions
 Let's remove the code from the REPL experiment from /Step 02/ and carve it in stone instead:
 - The /(def db ...)/ and /(def ds ...)/ are moved out of the /(comment ...)/ part into the actual source of /core.clj/.
 - And two new functions /retrieve-all-tables/ and /retrieve-table-columns/ are created.
@@ -306,23 +320,23 @@ Test in the REPL if the new functions work as expected.
   (retrieve-table-columns "t_customer")
 #+end_src
 
-*** End of Part 1
+**** End of Part 1
 
 This finishes the end of the first Part.  Now we are able to get the needed data from the database. In Part 2 we will start with the UI
 
 
 
 
-** SQL Inspector : Clojure + JDBC + JavaFX Desktop application - Part 2
+*** SQL Inspector : Part 2
 :PROPERTIES:
-:EXPORT_FILE_NAME: sql-inspector-part2
+:EXPORT_FILE_NAME: part2
 :END:
-*** Intro
+**** Intro
 In part 2 we will develop the user interface.  We will ignore styling and just focus on the mechanics.  The result will be something usable (but with an awful look 'n feel).
 
 I'll also want to demonstrate how the REPL development works step by step. Normally the functions are modified on the fly.  But as an educational tool, I will keep all subsequent versions in the /(comment ... )/ section.
 
-*** JavaFX
+**** Javafx
 Now we can start with the actual User interface.
 
 The GUI will be created by [[https://openjfx.io/][JavaFX]]. Go ahead and download and install the binaries [[https://gluonhq.com/products/javafx/][from Gluon]].
@@ -331,8 +345,8 @@ Here is a nice [[https://jenkov.com/tutorials/javafx/overview.html][JavaFX Overv
 
 On top of JavaFX we will use the clojure wrapper [[https://github.com/cljfx/cljfx][cljfx]].
 
-*** Step 04 - Let's show something
-**** 4.1 Add cljfx dependency
+**** Step 04 - Let's show something
+***** 4.1 Add cljfx dependency
 First add cljfx to the dependencies in /project.clj/.
 #+begin_src clojure
 ;; project.clj
@@ -380,7 +394,7 @@ Bye for now!
 
 If you have a REPL open in your editor, don't forget to reload that REPL too.
 
-**** 4.2 Hello there
+***** 4.2 Hello there
 To get our feet wet we start with the [[https://github.com/cljfx/cljfx#hello-world][cljfx Hello World]] example.
 #+begin_src clojure
 (fx/on-fx-thread
@@ -400,7 +414,7 @@ To get our feet wet we start with the [[https://github.com/cljfx/cljfx#hello-wor
 If all went well you should get the following window:
 [[file:si-step04-01.png]]
 
-**** 4.3 Let's program interactively
+***** 4.3 Let's program interactively
 We want to develop the GUI interactively from within the REPL. The following is heavily based on the example [[https://github.com/cljfx/cljfx/blob/master/examples/e12_interactive_development.clj][e12_interactive_development.clj]] from the cljfx [[https://github.com/cljfx/cljfx/tree/master/examples][examples]].
 
 The idea is whenever you changed a function, just call /(renderer)/ to redisplay the GUI.
@@ -446,7 +460,7 @@ Did you noticed the text-field showed the new value after you updated the state?
 This is the resulting window:
 [[file:si-step04-3-20.png]]
 
-**** 4.4 Get to the bones
+***** 4.4 Get to the bones
 Now we are ready to build the skeleton of our application.
 
 My motto is to let the user be as much as possible in control over the layout. Thus we immediately add a splitter with the [[https://jenkov.com/tutorials/javafx/splitpane.html][JavaFX SplitPane]], to let him decide how big he wants the tables part versus the columns part.
@@ -493,7 +507,7 @@ And this is the window so far:
 
 You might have noticed the splitter doesn't fill the complete window. Don't worry. For now, we are just working on the mechanics, not on the visuals.
 
-**** 4.5 Code cleanup
+***** 4.5 Code cleanup
 If you take a look at the /root-view/ function, there is a lot of nesting going on.  And I foresee this will gain some more complexity.
 
 Therefore I decided to refactor this a little bit.  Let's move the rendering of the tables — the left side of the split-pane — and the rendering of the columns — the right side of the split-pane — in their own functions.
@@ -532,7 +546,7 @@ Therefore I decided to refactor this a little bit.  Let's move the rendering of 
 
 #+end_src
 
-*** Step 05 - Run something
+**** Step 05 - Run something
 In the previous step 04, we've tried in the REPL to build our first version of the GUI.  In this step we'll use the stuff we learned.  Now we will update our application in such a way that /lein run/ will actually show our basic window.
 
 First of all we'll delete the functions /tables-view, columns-view, root-view/ and /renderer/ from the /(comment ...)/ block and create them into the source code above the /(comment ...)/.
@@ -560,7 +574,7 @@ This is the last time you can see the different steps that I executed in the Rep
 
 Now, please forgive me, but keeping this backlog of code I executed in the REPL involves a lot of copy paste work from my part. Besides, I assume you now get the idea how REPL development actually works. And thus, for all subsequent steps, I'll only commit the final code.
 
-*** Step 06 - Handle something
+**** Step 06 - Handle something
 Up to our first event handler.
 
 The goal for this step is to update the field /:table-filter/ in the /*state/ whenever the user enters text in the text field.
@@ -621,7 +635,7 @@ There is however a problem. The view function /tables-view/ now has to know the 
 
 Fortunately, cljfx let us also define an event handler as an arbitrary map. See the next step...
 
-*** Step 07 - Pure events in the view
+**** Step 07 - Pure events in the view
 Let's use a map for the :on-text-changed event:
 #+begin_src clojure
 (defn tables-view [{:keys [table-filter]}]
@@ -713,7 +727,7 @@ Fortunately the solution is simple: inform /cljfx/ to handle this event synchron
               {:fx/type :label
                :text (str ":table-filter contains " table-filter)}]})
 #+end_src
-*** Step 08 - Pure event handlers
+**** Step 08 - Pure event handlers
 The event handler /map-event-handler/ that processes the event /:update-table-filter/ is still coupled to (and updates) the /*state/ atom. This makes testing hard because we must mock the state in our tests.
 
 It would be handy if the event handler could be just data in, data out. See the cljfx documentation [[https://github.com/cljfx/cljfx#event-handling-on-steroids][Event handling on steroids]].
@@ -777,19 +791,19 @@ The last thing we have to do now is to use the value returned from the event to 
 #+end_src
 
 When we now type something in the text box, the actual state will be updated.  And this causes the label to show what we have typed.
-*** End of Part 2
+**** End of Part 2
 This concludes the second part in the series.
 
 We created a basic window, learned and discovered how we can react to events.  With these building blocks in our toolbox we can go on building our application.
 Part 3, here we come...
 
 
-** SQL Inspector : Clojure + JDBC + JavaFX Desktop application - Part 3
+*** SQL Inspector : Part 3
 :PROPERTIES:
-:EXPORT_FILE_NAME: sql-inspector-part3
+:EXPORT_FILE_NAME: part3
 :END:
 
-*** Step 09 - Show the tables
+**** Step 09 - Show the tables
 Now it is time to visualize the tables.
 
 For this we extend the state with a new key /:tables/.  And we update /(-main)/ to actually retrieve the tables.
@@ -920,14 +934,14 @@ After /(renderer)/ we get the following result:
 
 [[file:si-step09-10.png]]
 
-*** Step 10 - Context
+**** Step 10 - Context
 
 For now, the tables in the list are not yet filtered.
 
 However, before we fix this, let's first introduce the concept of /context/.  See explanation in the official cljfx documentation : [[https://github.com/cljfx/cljfx#subscriptions-and-contexts][Subscriptions and Context]].
 
 The idea is that the views shouldn't know the full structure of the state. Instead a view should subscribe to a piece of data. Additionally, values can be cached so a view will only render when the actual value it depends on is changed. An example: the user keeps adding characters to the filter. If the list of filtered tables doesn't change after updating the filter text, the view won't be rendered again.
-**** 10.1 Add /core.cache/
+***** 10.1 Add /core.cache/
 Whenever we use /cljfx contexts/ we must add the /core.cache/ dependency.
 
 Update /project.clj/
@@ -954,7 +968,7 @@ Add to /:require/ in /core.clj/:
 #+end_src
 
 Don't forget to restart your REPL to load the new module and then also reload the complete /core.clj/ file in your REPL.
-**** 10.2 Start using Context
+***** 10.2 Start using Context
 Update the source to use /context/.
 
 First of all, the /state/ is now a /context/:
@@ -1089,7 +1103,7 @@ Remark that we changed the event-handler, which is a crucial part of the applica
 
 The end result is we simplified the parameters to the view functions by passing only the /context/.  With the additional bonus that the values are cached and a view is only regenerated when the value is actually changed.
 
-*** Step 11 - Apply filtering
+**** Step 11 - Apply filtering
 
 Now we can begin to filter the tables list.
 
@@ -1136,8 +1150,8 @@ Rest us to modify the /tables-view/ function to use that subscription via /fx/su
 #+end_src
 
 If you now evaluate /(renderer)/ in the REPL you'll see the filtering is now working.
-*** Step 12 - Table selection
-**** 12.1 Select a table from the list
+**** Step 12 - Table selection
+***** 12.1 Select a table from the list
 Before we can show the columns, we must know what table is clicked on. We can do this by responding to the /:on-selected-item-changed/ event. Let's fire the event /:select-table/ as a responce.
 #+begin_src clojure
 (defn tables-view [{:keys [fx/context]}]
@@ -1165,7 +1179,7 @@ Because we updated the event-handler we must unfortunately quit and restart the 
 But once the app is up and running again, whenever we select a table that table name appears on the  columns header.
 [[file:si-step12-10.png]]
 
-**** 12.2 Multi method event handling
+***** 12.2 Multi method event handling
 
 The function /event-handler/ is on its way to become a huge monster /case/ statement. (Yes I hear you, 2 clauses is not really too big, I know)
 
@@ -1191,7 +1205,7 @@ Let's refactor it via a multi methods.
 
 Once again, we must restart the REPL and reload the source.  However it is the last time we need a full restart of the REPL. For some reason, updating a branch on a multimethod gets immediately picked up by the REPL. You can see this if you change the text in the /println/, re-evaluate that /defmethod/, and bam, it has effect.
 
-**** 12.3 Auto table selection
+***** 12.3 Auto table selection
 It would be nice if the first table of the list will be selected automatically whenever the filter is changed.
 
 Say we have an empty filter and we clicked the first table to select it. On the right side we see /Columns for table: t_address_type/.
@@ -1254,7 +1268,7 @@ Woo-hoo, it works!  Let's incorporate this in the /select-visible-table/ event.
 
 If we now play with the table-filter the first table is selected in the state. This means whatever filter you type, the right side /Columns for table: xxx/ always shows the first table of the visible tables.
 
-**** 12.4 Show the selected table
+***** 12.4 Show the selected table
 We have a slightly cosmetic problem.  If we use the filter /cus/ the first matching table is selected.  In this case it is /t_customer/, which is visible in the header on the right. However, this is not visible in the table view on the left.
 
 [[file:si-step12-40.png]]
@@ -1306,7 +1320,7 @@ Now we can use the /:selected-item/ property on the /table-view/ to automaticall
                       }}]})
 #+end_src
 
-**** 12.5 Improve User Experience
+***** 12.5 Improve User Experience
 There is still an inconvenience.
 
 Suppose we have an empty filter.  And we select the table /t_customer_address/.
@@ -1335,7 +1349,173 @@ All we have to do is change /subs-visible-table-to-select/ to return the current
                              selected-table
                              first-table)))
 #+end_src
-*** Step 13 - Show the columns
+**** Step 13 - Show the columns
+Now we can show the columns.
+***** 13.1 New state
+We need a placeholder for the columns in the state.
+#+begin_src clojure
+(def *state
+  (atom (fx/create-context
+         {:table-filter ""
+          :selected-table ""
+          :tables []
+          :columns-for-selected-table []};;--- NEW KEY FOR COLUMNS ---
+         cache/lru-cache-factory)))
+#+end_src
+
+***** 13.2 Event to refresh columns
+Now we need a new event to refresh the columns:
+#+begin_src clojure
+(defmethod event-handler :refresh-columns [{:keys [fx/context table]}]
+  (println ":refresh-columns for table" (:table_name table)))
+#+end_src
+
+Whenever we select a table, either manually or because the filter changed, we must call this new event.
+
+#+begin_src clojure
+(defmethod event-handler :select-table [{:keys [fx/context fx/event]}]
+  (println ":select-table --> " (:table_name event))
+  {:context (fx/swap-context context assoc :selected-table event)
+   :dispatch {:event/type :refresh-columns :table event}});;--- CALL NEW EVENT ---
+
+(defmethod event-handler :select-visible-table [{:keys [fx/context fx/event]}]
+  (let [table (fx/sub-ctx context subs-visible-table-to-select)]
+    (println ":select-visible-table --> table = " (:table_name table))
+    {:context (fx/swap-context context assoc :selected-table table)
+     :dispatch {:event/type :refresh-columns :table table}}));;--- CALL NEW EVENT ---
+#+end_src
+
+When we manually select a table for instance /t_address_type/ we see in the output that the new event is called.  When we enter a filter, like typing /"c"/ for instance, the table /t_customer/ gets automatically selected.  And here too we see the new event in the output.
+#+begin_src  clojure
+;; The output is:
+;;
+;; :select-table -->  t_address_type
+;; :refresh-columns for table t_address_type ;;--- OUTPUT OF THE NEW EVENT ---
+;; :update-table-filter ---> c
+;; subs-visible-table-to-select (contains-selected-table =  false )
+;; :select-visible-table --> table =  t_customer
+;; :refresh-columns for table t_customer;;--- OUTPUT OF THE NEW EVENT ---
+#+end_src
+***** 13.3 Side effect
+We can now retrieve the columns from the database.
+
+Because we don't want side effects in the event, we'll return a new effect instead.  And that effect will then actually retrieve the columns.
+
+Please have a look at the documentation [[https://github.com/cljfx/cljfx#event-handling-on-steroids][cljfx doc: Event handling on steroids]].
+
+We'll do something similar like the /:http effect/ from [[https://github.com/cljfx/cljfx/blob/master/examples/e18_pure_event_handling.clj][examples/e18_pure_event_handling.clj]]. That /:http effect/ is then used in [[https://github.com/cljfx/cljfx/blob/master/examples/e18_pure_event_handling/events.clj][examples/e18_pure_event_handling/events.clj]].
+
+First we have to define a new effect /:retrieve-columns/. That effect will call the function /retrieve-columns-effect/ that will load the columns from database. (But for testing we currently just do a /println/)
+#+begin_src clojure
+;;--- NEW FUNCTION ---
+(defn retrieve-columns-effect [table dispatch!]
+  (println "retrieve-columns-effect " table))
+
+(def map-event-handler
+    (-> event-handler
+        (fx/wrap-co-effects
+         {:fx/context (fx/make-deref-co-effect *state)})
+        (fx/wrap-effects
+         {:context (fx/make-reset-effect *state)
+          :dispatch fx/dispatch-effect
+          ;;--- CREATE NEW EFFECT ---
+          :retrieve-columns retrieve-columns-effect })))
+#+end_src
+
+Next change the /:refresh-columns/ event to return that effect.  At the same time we'll clear the columns.  Reason: when the database is slow, at least we won't see the columns of a previous table.
+#+begin_src clojure
+(defmethod event-handler :refresh-columns [{:keys [fx/context table]}]
+  (println ":refresh-columns for table" (:table_name table))
+  {;; Clear existing columns
+   :context (fx/swap-context context assoc :columns-for-selected-table [])
+   ;; Return an effect to actually retrieve the columns
+   :retrieve-columns (fx/sub-val context :selected-table)})
+#+end_src
+
+If we click on a table we'll see that the side-effect function /retrieve-columns-effect/ is correctly called right after the /:refresh-columns/ event.
+
+#+begin_src clojure
+;; :select-table -->  t_customer
+;; :refresh-columns for table t_customer
+;; retrieve-columns-effect  {:table_name t_customer, :create_date #inst "2022-03-25T21:02:13.880000000-00:00", :modify_date #inst "2022-03-25T21:16:14.677000000-00:00"}
+#+end_src
+
+***** 13.4 Retrieve columns
+The /effect/ mechanism is working. Time to actually retrieve the columns.
+
+However, we first need a way to pass the data to the application's state. This is via a new event /:set-columns/.
+#+begin_src clojure
+(defmethod event-handler :set-columns [{:keys [fx/context columns]}]
+  (println ":set-columns " columns)
+  {:context (fx/swap-context context assoc :columns-for-selected-table columns)})
+#+end_src
+
+Our /effect/ should emit that event /:set-columns/ via the /dispatch!/ function that we get as a parameter. The columns are retrieved via the DB function /retrieve-table-columns/ we created way back in /Part 1/.
+
+#+begin_src clojure
+(defn retrieve-columns-effect [table dispatch!]
+  (println "retrieve-columns-effect " table)
+  (dispatch! {:event/type :set-columns
+              :columns (retrieve-table-columns (:table_name table))}))
+#+end_src
+
+***** 13.5 It's showtime
+The last step is to visualize the columns.
+
+We'll use a table-view just like we did with the tables. Just one caveat: if the column type is one of /int, bit, date, datetime/ we don't show the size of the field.
+#+begin_src clojure
+(defn columns-view [{:keys [fx/context]}]
+  {:fx/type :v-box
+   :children [{:fx/type :label
+               :text (str "Columns for table: "
+                          (:table_name (fx/sub-val context :selected-table)))}
+              {:fx/type fx.ext.table-view/with-selection-props
+               :props {:selection-mode :multiple}
+               :desc {:fx/type :table-view
+                      :columns [{:fx/type :table-column
+                                 :text "#"
+                                 :cell-value-factory identity
+                                 :cell-factory {:fx/cell-type :table-cell
+                                                :describe (fn [column-data]
+                                                            (println "Data for cell is:" column-data)
+                                                            {:text (str(:column_id column-data))})}}
+                                {:fx/type :table-column
+                                 :text "Column"
+                                 :cell-value-factory identity
+                                 :cell-factory {:fx/cell-type :table-cell
+                                                :describe (fn [column-data] {:text (:column_name column-data)})}}
+                                {:fx/type :table-column
+                                 :text "Type"
+                                 :cell-value-factory identity
+                                 :cell-factory {:fx/cell-type :table-cell
+                                                :describe (fn [column-data] {:text (:type_name column-data)})}}
+                                {:fx/type :table-column
+                                 :text "Size"
+                                 :cell-value-factory identity
+                                 :cell-factory {:fx/cell-type :table-cell
+                                                :describe (fn [column-data]
+                                                            (let [types-with-no-size #{"int" "bit" "date" "datetime"}
+                                                                  hide-size (some? (some #(= (:type_name column-data) %) types-with-no-size))
+                                                                  value (if (true? hide-size)
+                                                                          ""
+                                                                          (str (:max_length column-data)))]
+                                                              {:text value}))}}]
+                      :items (fx/sub-val context :columns-for-selected-table)}}]})
+#+end_src
+
+
+Let's see how this looks so far:
+[[file:si-step13-50.png]]
+
+This concludes the third part of the series.  What we now have is an application that you can use for your own.
+
+It is however not yet ready to be released in the wild.  Some improvements that are needed:
+- This is not an app with the best looks
+- Database connection is hardcoded
+- Only one type of database is supported
+
+
+  
 
 * Footnotes
 * COMMENT Local Variables                          :ARCHIVE:

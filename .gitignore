@@ -1,1 +1,3 @@
 *.lock
+/hugo/
+!/hugo/config.yml
